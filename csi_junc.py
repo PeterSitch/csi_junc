@@ -170,10 +170,13 @@ with st.sidebar:
             #plt.imshow(np.where(res<0.9, np.nan, res),vmax=1.05,vmin=0.8)
             #ax.imshow(np.where(res<0.8, np.nan, res)[150:850,400:600],vmax=1.10,vmin=0.8)
 
-            x_trim = 1000 - (
+            x_trim = int(max(0,
+                    1000 - (
                     500 + width//2 + 40 + int(length*math.sin(math.pi*max(abs(x) for x in (f1_angle, f2_angle))/180)/2)
-                        ) - max(abs(x) for x in (f1_x,f2_x))
-            y_trim = 1000 - (500 + length//2 + (length-junc_length)//2 + 40)
+                        ) - max(abs(x) for x in (f1_x,f2_x)) ))
+            y_trim = int(max(0,
+                    1000 - (500 + length//2 + (length-junc_length)//2 + 40
+                        ) - max(abs(x) for x in (f1_y,f2_y) )))
 
         
 
