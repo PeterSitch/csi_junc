@@ -26,7 +26,7 @@ def rota3(img,ang,x1_ext,y1_ext):
 
 @st.cache_data
 def make_field (width,length,junc_length):
-    canvas = np.zeros((1000,1000))
+    canvas = make_canvas()
     y_size, x_size = np.shape(canvas)
     
     for x in range(x_size):
@@ -38,6 +38,10 @@ def make_field (width,length,junc_length):
                 else:
                     canvas[y,x]=1-(junc_start - y)/junc_length 
     return canvas
+
+
+def make_canvas():
+    return np.zeros((1000,1000))
 
 
 @st.cache_data
@@ -77,8 +81,9 @@ with st.sidebar:
         
         #f2
         st.markdown("### Sup iso")
+        show_f2 = st.checkbox("show",value=True, key= "show_f2")
         col1, col2, col3 = st.columns(3)
-        f2_angle = col1.number_input("angle (deg)", min_value = -90, max_value = 90, value=0, key = "f2_angle")
+        f2_angle = col1.number_input("angle (deg)", min_value = -90.0, max_value = 90.0, value=0.0, key = "f2_angle")
         f2_x = col2.number_input("x_shift (mm)", min_value = -100, max_value = 100, value=0, key = "f2_x")
         f2_y = col3.number_input("y_shift (mm)", min_value = -100, max_value = 100, value=0, key = "f2_y")
         
@@ -86,16 +91,19 @@ with st.sidebar:
         #f1
         st.text("")
         st.markdown("### Inf iso")
+        show_f1 = st.checkbox("show",value=True,key = "show_f1")
         col1, col2, col3 = st.columns(3)
-        f1_angle = col1.number_input("angle (deg)", min_value = -90, max_value = 90, value=0, key = "f1_angle")
+        f1_angle = col1.number_input("angle (deg)", min_value = -90.0, max_value = 90.0, value=0.0, key = "f1_angle")
         f1_x = col2.number_input("x_shift (mm)", min_value = -100, max_value = 100, value=0, key = "f1_x")
         f1_y = col3.number_input("y_shift (mm)", min_value = -100, max_value = 100, value=0, key = "f1_y")
         
         st.text("")
         st.markdown("### Plot parameters")
         col1, col2 = st.columns(2)
-        dmin = col1.number_input("dose min", min_value=0.0, max_value = 1.0, value=0.9, key = "dmin")
-        dmax = col2.number_input("dose dmax", min_value=1.0, max_value = 2.0, value=1.1, key = "dmax")
+        dmin = col1.number_input("dose min", min_value=0.0, max_value = 2.0, value=0.9, key = "dmin")
+        dmax = col2.number_input("dose dmax", min_value=0.0, max_value = 2.0, value=1.1, key = "dmax")
+        
+        
         
         
         #f2_angle = -2
@@ -142,12 +150,18 @@ with st.sidebar:
 
             canvas = make_field(width,length,junc_length)
 
-                            
-            f1 =  pos_field(np.copy(canvas),f1_x,f1_y,f1_angle,length,junc_length,x1_ext,y1_ext, iso = "inf")             
+            if show_f1:                
+                f1 =  pos_field(np.copy(canvas),f1_x,f1_y,f1_angle,length,junc_length,x1_ext,y1_ext, iso = "inf")             
+            else:
+                f1 = make_canvas()
+            
             
             #f2 = np.rot90(np.copy(canvas),2,)
-            f2 = pos_field(np.copy(canvas),f2_x+1,f2_y-1,f2_angle,length,junc_length,x2_ext,y2_ext, iso = "sup")
-
+            
+            if show_f2:  
+                f2 = pos_field(np.copy(canvas),f2_x+1,f2_y-1,f2_angle,length,junc_length,x2_ext,y2_ext, iso = "sup")
+            else:
+                f2 = make_canvas()
             
            # f1 = np.copy(canvas)
            # f1 = np.roll(f1,f1_x,axis=1)
@@ -162,7 +176,7 @@ with st.sidebar:
  #           f2 = np.roll(rota3(f2, -f2_angle, x2_ext, y2_ext), - (length-junc_length)//2, axis=0)
 
             
-
+            
 
 
             res = f1 + f2
@@ -193,7 +207,8 @@ with st.sidebar:
                                        (500-length//2)+(length-junc_length)//2 + ptv-y_trim-f1_y),
                                       width-2*ptv, length-2*ptv, angle=f1_angle,
                                       rotation_point = 'center', linewidth=1, edgecolor='r', facecolor='none')
-            ax.add_patch(rect1)
+            if show_f1:
+                ax.add_patch(rect1)
 
             rect2 = patches.Rectangle((500-width/2+ptv-x_trim+f2_x,
                                        (500-length//2)-(length-junc_length)//2 + ptv-y_trim-f2_y),
@@ -201,7 +216,9 @@ with st.sidebar:
                                       rotation_point = 'center', linewidth=1, edgecolor='g', facecolor='none')
 
             # Add the patch to the Axes
-            ax.add_patch(rect2)
+            
+            if show_f2:
+                ax.add_patch(rect2)
             plt.colorbar(pl, ax=ax)
 
             buf = BytesIO()
