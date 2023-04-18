@@ -61,16 +61,44 @@ def pos_field(img,f_x,f_y,f_angle,length,junc_length,x_ext,y_ext,iso):
     return img
 
 
+
+def rotate_around_point_highperf(xy, radians, origin=(0, 0)):
+    """Rotate a point around a given point.
+    
+    I call this the "high performance" version since we're caching some
+    values that are needed >1 time. It's less readable than the previous
+    function but it's faster.
+    """
+    x, y = xy
+    offset_x, offset_y = origin
+    adjusted_x = (x - offset_x)
+    adjusted_y = (y - offset_y)
+    cos_rad = math.cos(radians)
+    sin_rad = math.sin(radians)
+    qx = offset_x + cos_rad * adjusted_x + sin_rad * adjusted_y
+    qy = offset_y + -sin_rad * adjusted_x + cos_rad * adjusted_y
+
+    return qx, qy
+
+
 width = 80
 length = 400
 ptv=10
+blur_factor = 3
 
 
+col1, col2, = st.columns([1.6,1])
 
-#col1, col2, col3, = st.columns([1,1, 1])
+plot_space = col1.empty()
 
-plot_space = st.empty()
-
+with col2:
+    st.text("")
+    st.text("")
+    st.text("")
+    st.text("")
+    st.text("")
+    x_prof_space = st.empty()
+    y_prof_space = st.empty()
 
 
 with st.sidebar:
@@ -103,7 +131,7 @@ with st.sidebar:
         dmin = col1.number_input("dose min", min_value=0.0, max_value = 2.0, value=0.9, key = "dmin")
         dmax = col2.number_input("dose dmax", min_value=0.0, max_value = 2.0, value=1.1, key = "dmax")
         
-        
+        show_prof = st.checkbox("show x/y profiles",value=True)
         
         
         #f2_angle = -2
@@ -144,9 +172,37 @@ with st.sidebar:
 
 
 
+            x_trim = int(max(0,
+                    1000 - (
+                    500 + width//2 + 40 + int(length*math.sin(math.pi*max(abs(x) for x in (f1_angle, f2_angle))/180)/2)
+                        ) - max(abs(x) for x in (f1_x,f2_x)) ))
+            y_trim = int(max(0,
+                    1000 - (500 + length//2 + (length-junc_length)//2 + 40
+                        ) - max(abs(x) for x in (f1_y,f2_y) )))
 
 
 
+            inf_coords = (500-width/2+ptv-x_trim+f1_x, 500-width/2+ptv-x_trim+f1_x +width-2*ptv,
+                (500-length//2)+(length-junc_length)//2 + ptv-y_trim-f1_y, (500-length//2)+(length-junc_length)//2 + ptv-y_trim-f1_y + length-2*ptv
+                )
+
+            sup_coords = (500-width/2+ptv-x_trim+f2_x, 500-width/2+ptv-x_trim+f2_x +width-2*ptv,
+                (500-length//2)-(length-junc_length)//2 + ptv-y_trim-f2_y, (500-length//2)-(length-junc_length)//2 + ptv-y_trim-f2_y + length-2*ptv
+                )
+
+            inf_cent = ((inf_coords[1]+inf_coords[0])/2,(inf_coords[3]+inf_coords[2])/2)
+            sup_cent = ((sup_coords[1]+sup_coords[0])/2,(sup_coords[3]+sup_coords[2])/2)
+            
+            
+            inf_junc_point = rotate_around_point_highperf((inf_cent[0],inf_coords[2]),-f1_angle*math.pi/180,origin=inf_cent)
+
+            sup_junc_point = rotate_around_point_highperf((sup_cent[0],sup_coords[3]),-f2_angle*math.pi/180,origin=sup_cent)
+
+            prof_point = ((sup_junc_point[0]+inf_junc_point[0])/2,(sup_junc_point[1]+inf_junc_point[1])/2)
+            
+            x_prof_length = 100
+            y_prof_length = min(max(150,junc_length*1.5),1.6*y_trim)
+            
 
             canvas = make_field(width,length,junc_length)
 
@@ -176,7 +232,8 @@ with st.sidebar:
  #           f2 = np.roll(rota3(f2, -f2_angle, x2_ext, y2_ext), - (length-junc_length)//2, axis=0)
 
             
-            
+            f1 = ndimage.gaussian_filter(f1,sigma=blur_factor)
+            f2 = ndimage.gaussian_filter(f2,sigma=blur_factor)
 
 
             res = f1 + f2
@@ -184,13 +241,7 @@ with st.sidebar:
             #plt.imshow(np.where(res<0.9, np.nan, res),vmax=1.05,vmin=0.8)
             #ax.imshow(np.where(res<0.8, np.nan, res)[150:850,400:600],vmax=1.10,vmin=0.8)
 
-            x_trim = int(max(0,
-                    1000 - (
-                    500 + width//2 + 40 + int(length*math.sin(math.pi*max(abs(x) for x in (f1_angle, f2_angle))/180)/2)
-                        ) - max(abs(x) for x in (f1_x,f2_x)) ))
-            y_trim = int(max(0,
-                    1000 - (500 + length//2 + (length-junc_length)//2 + 40
-                        ) - max(abs(x) for x in (f1_y,f2_y) )))
+            
 
         
 
@@ -219,11 +270,61 @@ with st.sidebar:
             
             if show_f2:
                 ax.add_patch(rect2)
+                
+            if show_prof:
+                plt.plot([prof_point[0],prof_point[0]],[prof_point[1]-y_prof_length/2,prof_point[1]+y_prof_length/2],'k--')
+                plt.plot([prof_point[0]-x_prof_length/2,prof_point[0]+x_prof_length/2],[prof_point[1],prof_point[1]],'k--')
+                
+                
             plt.colorbar(pl, ax=ax)
 
             buf = BytesIO()
             f.savefig(buf, format="png")
             plot_space.image(buf)
+
+
+            if show_prof:
+                f, ax = plt.subplots(1, 1, figsize = (int(plot_x/1.2), int(plot_y/3)))
+                _res  = res[y_trim:-y_trim,x_trim:-x_trim]
+
+                _f1 = f1[y_trim:-y_trim,x_trim:-x_trim]
+                _f2 = f2[y_trim:-y_trim,x_trim:-x_trim]
+                
+                
+                plt.plot(_f2[int(prof_point[1]-y_prof_length/2):int(prof_point[1]+y_prof_length/2),int(prof_point[0])],'g')
+                plt.plot(_f1[int(prof_point[1]-y_prof_length/2):int(prof_point[1]+y_prof_length/2),int(prof_point[0])],'r')
+                plt.plot(_res[int(prof_point[1]-y_prof_length/2):int(prof_point[1]+y_prof_length/2),int(prof_point[0])])
+                
+                plt.title("Y - Profile")
+                
+                
+                #buf = BytesIO()
+                f.savefig(buf, format="png")
+                
+                with y_prof_space.container():
+                    st.text("")
+                    #st.markdown("Y - Profile")
+                    st.image(buf)#.pyplot(f)
+
+                
+                
+                #y_prof_space.image(buf)#.pyplot(f)
+                
+                f, ax = plt.subplots(1, 1, figsize = (int(plot_x/1.2), int(plot_y/3)))
+                
+                plt.plot(_f2[int(prof_point[1]),int(prof_point[0]-x_prof_length/2):int(prof_point[0]+x_prof_length/2)],'g')
+                plt.plot(_f1[int(prof_point[1]),int(prof_point[0]-x_prof_length/2):int(prof_point[0]+x_prof_length/2)],'r')
+                plt.plot(_res[int(prof_point[1]),int(prof_point[0]-x_prof_length/2):int(prof_point[0]+x_prof_length/2)])
+                
+                plt.title("X - Profile")
+                
+                f.savefig(buf, format="png")
+                
+                with x_prof_space.container():
+                    st.text("")
+                    #st.markdown("X - Profile")
+                    st.image(buf)#.pyplot(f)
+
 
             #plot_space.pyplot(fig=f)
             
